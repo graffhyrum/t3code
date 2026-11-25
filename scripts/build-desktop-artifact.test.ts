@@ -44,6 +44,7 @@ import {
   resolveMacPasskeySigningConfiguration,
   resolveMergedStageDependencies,
   resolveBuildOptions,
+  resolveDesktopBuildIconAssets,
   stageWslRuntimeArchive,
   ancestorNodeModulesPaths,
   copyDirectoryPreservingSymlinks,
@@ -567,6 +568,18 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       );
 
       assert.nestedPropertyVal(linux, "linux.desktop.entry.StartupWMClass", "com.t3tools.T3Code");
+      assert.nestedPropertyVal(linux, "linux.desktop.entry.Name", "T3 Code (graff)");
+      assert.strictEqual(linux["productName"], "T3 Code (graff)");
+      assert.strictEqual(linux["appId"], "com.t3tools.t3code");
+      assert.deepStrictEqual(
+        (linux["linux"] as { protocols: ReadonlyArray<{ schemes: ReadonlyArray<string> }> })
+          .protocols[0]?.schemes,
+        ["t3code", "t3code-dev"],
+      );
+      assert.strictEqual(
+        resolveDesktopBuildIconAssets("0.1.12-graff.2").linuxIconPng,
+        "assets/graff/green-universal-1024.png",
+      );
     }),
   );
 

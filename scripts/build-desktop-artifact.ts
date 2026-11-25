@@ -2777,7 +2777,7 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
 
   return {
     macIconPng: BRAND_ASSET_PATHS.productionMacIconPng,
-    linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
+    linuxIconPng: BRAND_ASSET_PATHS.graffLinuxIconPng,
     windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
   };
 }
@@ -2950,6 +2950,9 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     buildConfig.toolsets = { appimage: "1.0.3" };
     const path = yield* Path.Path;
     const repoRoot = yield* RepoRoot;
+    if (updateChannel !== "nightly") {
+      buildConfig.productName = "T3 Code (graff)";
+    }
     buildConfig.afterPack = path.join(repoRoot, "scripts/linux-after-pack.ts");
     buildConfig.linux = {
       target: target === "AppImage" ? [target, "deb"] : [target],
@@ -2966,6 +2969,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       ],
       desktop: {
         entry: {
+          ...(updateChannel === "nightly" ? {} : { Name: "T3 Code (graff)" }),
           // Match Electron's WM_CLASS from setDesktopName so docks use this launcher.
           StartupWMClass: "com.t3tools.T3Code",
         },
