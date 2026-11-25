@@ -193,6 +193,12 @@ export const PullRequestRow = Schema.Struct({
   isDraft: Schema.Boolean,
   /** Whether or not the pull request can be merged based on the existence of merge conflicts. */
   mergeable: GraphQL.enumLiterals(Shared.MergeableState.literals),
+  /** Detailed information about the current pull request merge state status. */
+  mergeStateStatus: Schema.optionalKey(GraphQL.enumLiterals(Shared.MergeStateStatus.literals)),
+  /** Indicates whether the viewer can bypass branch protections and merge the pull request immediately */
+  viewerCanMergeAsAdmin: Schema.optionalKey(Schema.Boolean),
+  /** Indicates whether the pull request's base ref has a merge queue enabled. */
+  isMergeQueueEnabled: Schema.optionalKey(Schema.Boolean),
   /** The current status of this pull request with respect to code review. */
   reviewDecision: Schema.NullOr(GraphQL.enumLiterals(Shared.PullRequestReviewDecision.literals)),
   /** A list of latest reviews per user associated with the pull request that are not also pending review. */
@@ -270,7 +276,7 @@ export const PullRequestSearch = GraphQL.query("PullRequestSearch", {
       { name: "search", body: ["(query:$", "q", " type:ISSUE first:$", "first", " after:$", "after", "){pageInfo{hasNextPage endCursor}nodes{__typename...", "PullRequestRow", "}}"] }
     ],
     fragments: [
-      { name: "PullRequestRow", body: ["on PullRequest{stack@include(if:$", "stacks", "){number size baseRefName}stackEntry@include(if:$", "stacks", "){position}number title url author{__typename login avatarUrl...on User{name}}headRefName baseRefName state isDraft mergeable reviewDecision latestReviews(first:20){nodes{state isMinimized author{__typename login}}}additions@include(if:$", "stats", ")deletions@include(if:$", "stats", ")createdAt updatedAt mergedAt repository{nameWithOwner}reviewRequests(first:20){nodes{requestedReviewer{__typename...on User{login}...on Team{slug}}}}labels(first:20){nodes{name color description}}commits(last:1){nodes{commit{statusCheckRollup{state}}}}}"] }
+      { name: "PullRequestRow", body: ["on PullRequest{stack@include(if:$", "stacks", "){number size baseRefName}stackEntry@include(if:$", "stacks", "){position}number title url author{__typename login avatarUrl...on User{name}}headRefName baseRefName state isDraft mergeable mergeStateStatus@include(if:$", "stacks", ")viewerCanMergeAsAdmin@include(if:$", "stacks", ")isMergeQueueEnabled@include(if:$", "stacks", ")reviewDecision latestReviews(first:20){nodes{state isMinimized author{__typename login}}}additions@include(if:$", "stats", ")deletions@include(if:$", "stats", ")createdAt updatedAt mergedAt repository{nameWithOwner}reviewRequests(first:20){nodes{requestedReviewer{__typename...on User{login}...on Team{slug}}}}labels(first:20){nodes{name color description}}commits(last:1){nodes{commit{statusCheckRollup{state}}}}}"] }
     ]
   },
   variables: {
@@ -322,7 +328,7 @@ export const PullRequestList = GraphQL.query("PullRequestList", {
       { name: "repository", body: ["(owner:$", "owner", " name:$", "name", "){pullRequests(first:$", "first", " after:$", "after", " states:$", "states", " orderBy:{field:CREATED_AT direction:DESC}){pageInfo{hasNextPage endCursor}nodes{...", "PullRequestRow", "}}}"] }
     ],
     fragments: [
-      { name: "PullRequestRow", body: ["on PullRequest{stack@include(if:$", "stacks", "){number size baseRefName}stackEntry@include(if:$", "stacks", "){position}number title url author{__typename login avatarUrl...on User{name}}headRefName baseRefName state isDraft mergeable reviewDecision latestReviews(first:20){nodes{state isMinimized author{__typename login}}}additions@include(if:$", "stats", ")deletions@include(if:$", "stats", ")createdAt updatedAt mergedAt repository{nameWithOwner}reviewRequests(first:20){nodes{requestedReviewer{__typename...on User{login}...on Team{slug}}}}labels(first:20){nodes{name color description}}commits(last:1){nodes{commit{statusCheckRollup{state}}}}}"] }
+      { name: "PullRequestRow", body: ["on PullRequest{stack@include(if:$", "stacks", "){number size baseRefName}stackEntry@include(if:$", "stacks", "){position}number title url author{__typename login avatarUrl...on User{name}}headRefName baseRefName state isDraft mergeable mergeStateStatus@include(if:$", "stacks", ")viewerCanMergeAsAdmin@include(if:$", "stacks", ")isMergeQueueEnabled@include(if:$", "stacks", ")reviewDecision latestReviews(first:20){nodes{state isMinimized author{__typename login}}}additions@include(if:$", "stats", ")deletions@include(if:$", "stats", ")createdAt updatedAt mergedAt repository{nameWithOwner}reviewRequests(first:20){nodes{requestedReviewer{__typename...on User{login}...on Team{slug}}}}labels(first:20){nodes{name color description}}commits(last:1){nodes{commit{statusCheckRollup{state}}}}}"] }
     ]
   },
   variables: {

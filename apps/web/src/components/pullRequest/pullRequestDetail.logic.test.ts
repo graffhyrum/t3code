@@ -52,6 +52,7 @@ import {
   readPullRequestDetailSnapshot,
   resolveDisplayedPullRequestDetail,
   resolvePullRequestReferenceHost,
+  describePullRequestChecks,
   resolvePullRequestPrimaryControl,
   allowsSinglePullRequestMerge,
   shouldRefreshPullRequestActivity,
@@ -211,6 +212,42 @@ describe("pull request primary control", () => {
         autoMergeEnabled: undefined,
       }),
     ).toBe("merge");
+  });
+
+  it("offers auto-merge for a merge the host's branch rules block", () => {
+    expect(resolvePullRequestPrimaryControl({ ...open, mergeBlocked: true })).toBe(
+      "enable-auto-merge",
+    );
+  });
+
+  it("describes an unstarted required check among 10 passing and 4 skipped checks as running", () => {
+    const reported = [
+      ...Array.from({ length: 10 }, (_, i) => ({
+        name: `pass-${i + 1}`,
+        status: "success" as const,
+        description: null,
+        url: null,
+      })),
+      ...Array.from({ length: 4 }, (_, i) => ({
+        name: `skip-${i + 1}`,
+        status: "skipped" as const,
+        description: null,
+        url: null,
+      })),
+    ];
+    expect(describePullRequestChecks(reported)).toBe("10 of 14 passing");
+    expect(
+      describePullRequestChecks([
+        ...reported,
+        {
+          name: "wci-tier",
+          status: "pending" as const,
+          description: null,
+          url: null,
+          required: true,
+        },
+      ]),
+    ).toBe("1 of 15 running");
   });
 });
 
@@ -1793,6 +1830,11 @@ describe("the compact row's single action slot", () => {
         openDetail({ checks: [check("failure"), check("pending")] }),
       ),
     ).toBe("fix");
+  });
+
+  it("does not offer a merge the host's branch rules block", () => {
+    expect(resolveThreadPanelPullRequestAction(openDetail())).toBe("merge");
+    expect(resolveThreadPanelPullRequestAction(openDetail({ mergeBlocked: true }))).toBeNull();
   });
 
   it("offers nothing the viewer may not do, and nothing on settled pull requests", () => {

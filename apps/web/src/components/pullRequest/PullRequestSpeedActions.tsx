@@ -24,7 +24,7 @@ import { changeRequestTermKind } from "./changeRequestTerm";
 type PullRequestSpeedActionEntry = Pick<
   EnvironmentPullRequestEntry,
   "environmentId" | "projectId" | "host" | "repository" | "number" | "state" | "isDraft"
-> & { readonly stack?: object | undefined };
+> & { readonly stack?: object | undefined; readonly mergeBlocked?: boolean | undefined };
 
 export interface PullRequestSpeedActionResult<Entry = EnvironmentPullRequestEntry> {
   readonly entry: Entry;
@@ -108,7 +108,12 @@ export function PullRequestSpeedActions<Entry extends PullRequestSpeedActionEntr
                 <Button
                   variant={action === "close" ? "destructive-outline" : "outline"}
                   size="xs"
-                  disabled={!canWrite || busy || (action === "merge" && entry.stack !== undefined)}
+                  disabled={
+                    !canWrite ||
+                    busy ||
+                    (action === "merge" &&
+                      (entry.stack !== undefined || entry.mergeBlocked === true))
+                  }
                   aria-label={resolve(ACTIONS[action].numbered, { number: entry.number })}
                   onClick={() => void perform(action)}
                   onPointerDown={(event) => {
@@ -128,9 +133,11 @@ export function PullRequestSpeedActions<Entry extends PullRequestSpeedActionEntr
                     "Open this {term, select, mr {merge request} cr {change request} other {pull request}} to merge its stack",
                     { term: changeRequestTermKind(terminology) },
                   )
-                : action === "close" && onCloseSweepStart
-                  ? gt("Close immediately, or drag across rows to close several")
-                  : resolve(ACTIONS[action].immediate)}
+                : action === "merge" && entry.mergeBlocked === true
+                  ? gt("The repository's rules block merging until their requirements are met.")
+                  : action === "close" && onCloseSweepStart
+                    ? gt("Close immediately, or drag across rows to close several")
+                    : resolve(ACTIONS[action].immediate)}
             </TooltipPopup>
           </Tooltip>
         );

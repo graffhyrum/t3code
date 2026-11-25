@@ -43,6 +43,7 @@ export function PullRequestStackMenu({
   shownHeadSha,
   stale,
   canMerge,
+  mergeBlocked = false,
   canRebase,
   canAutoMerge,
   preferAutoMerge,
@@ -65,6 +66,7 @@ export function PullRequestStackMenu({
   shownHeadSha: string | undefined;
   stale: boolean;
   canMerge: boolean;
+  mergeBlocked?: boolean | undefined;
   canRebase: boolean;
   /** The host can arm auto-merge for this layer and the open layers below it. */
   canAutoMerge: boolean;
@@ -103,6 +105,7 @@ export function PullRequestStackMenu({
     mergeHasClosed ||
     mergeLayers.length === 0 ||
     mergeLayers.some((layer) => layer.isDraft);
+  const immediateMergeDisabled = mergeDisabled || mergeBlocked;
   const staleReason = notice ?? gt("Checking the stack with the host…");
   const rebaseDisabled = pending || stale || hasUnknownHead || hasClosed || unmerged.length === 0;
   const run = async () => {
@@ -110,7 +113,7 @@ export function PullRequestStackMenu({
       pending ||
       !confirmation ||
       (confirmation === "merge"
-        ? !canMerge || mergeDisabled
+        ? !canMerge || immediateMergeDisabled
         : confirmation === "enable-auto-merge"
           ? !canAutoMerge || autoMergeArmed || mergeDisabled
           : !canRebase || rebaseDisabled)
@@ -217,6 +220,12 @@ export function PullRequestStackMenu({
   };
   const confirmationLayers = confirmation === "update-branch" ? unmerged : mergeLayers;
   const leadsWithAutoMerge = canAutoMerge && preferAutoMerge;
+  const primaryMergeDisabled = leadsWithAutoMerge ? mergeDisabled : immediateMergeDisabled;
+  const primaryMergeBlockedReason = stale
+    ? staleReason
+    : !leadsWithAutoMerge && mergeBlocked
+      ? gt("The repository's rules block merging until their requirements are met.")
+      : null;
   return (
     <>
       <Menu open={open} onOpenChange={setOpen}>
@@ -276,7 +285,10 @@ export function PullRequestStackMenu({
             <>
               <MenuSeparator />
               {canMerge && !autoMergeArmed ? (
-                <MenuItem disabled={mergeDisabled} onClick={() => setConfirmation("merge")}>
+                <MenuItem
+                  disabled={immediateMergeDisabled}
+                  onClick={() => setConfirmation("merge")}
+                >
                   <PullRequestGlyph.merged aria-hidden />
                   <T>
                     Merge stack (<Var>{mergeLayers.length}</Var>)
@@ -326,11 +338,11 @@ export function PullRequestStackMenu({
                 <Button
                   variant="default"
                   size="xs"
-                  disabled={mergeDisabled && !stale}
-                  aria-disabled={mergeDisabled || undefined}
-                  aria-description={stale ? staleReason : undefined}
+                  disabled={primaryMergeDisabled && primaryMergeBlockedReason === null}
+                  aria-disabled={primaryMergeDisabled || undefined}
+                  aria-description={primaryMergeBlockedReason ?? undefined}
                   onClick={
-                    mergeDisabled
+                    primaryMergeDisabled
                       ? undefined
                       : () => setConfirmation(leadsWithAutoMerge ? "enable-auto-merge" : "merge")
                   }
@@ -346,17 +358,16 @@ export function PullRequestStackMenu({
             }
           />
           <TooltipPopup>
-            {stale
-              ? staleReason
-              : gt(
-                  "{count, plural, one {Merge stack through '#'{number} into {base} ({count} {term, select, mr {merge request} cr {change request} other {pull request}})} other {Merge stack through '#'{number} into {base} ({count} {term, select, mr {merge requests} cr {change requests} other {pull requests}})}}",
-                  {
-                    count: mergeLayers.length,
-                    number: reference.number,
-                    base: stack.base,
-                    term: changeRequestTermKind(terminology),
-                  },
-                )}
+            {primaryMergeBlockedReason ??
+              gt(
+                "{count, plural, one {Merge stack through '#'{number} into {base} ({count} {term, select, mr {merge request} cr {change request} other {pull request}})} other {Merge stack through '#'{number} into {base} ({count} {term, select, mr {merge requests} cr {change requests} other {pull requests}})}}",
+                {
+                  count: mergeLayers.length,
+                  number: reference.number,
+                  base: stack.base,
+                  term: changeRequestTermKind(terminology),
+                },
+              )}
           </TooltipPopup>
         </Tooltip>
       ) : null}

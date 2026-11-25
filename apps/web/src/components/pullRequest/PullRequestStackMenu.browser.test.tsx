@@ -91,3 +91,91 @@ it.each([
   ]);
   if (row.label !== "Merge stack") expect(state.sent[0]).not.toHaveProperty("expectedHeadSha");
 });
+
+it("blocks immediate Merge stack when mergeBlocked is true and auto-merge is unavailable", async () => {
+  setup("");
+  await using screen = await render(
+    <ToastProvider>
+      <PullRequestStackMenu
+        environmentId={EnvironmentId.make("environment")}
+        reference={{
+          projectId: ProjectId.make("project"),
+          repository: "owner/repository",
+          number: 2,
+        }}
+        hostLabel="GitHub"
+        terminology={sourceControlClients.get("github").changeRequest}
+        stack={{
+          id: "stack",
+          number: 1,
+          url: "https://github.com/owner/repository/stack/1",
+          base: "main",
+          layers: [{ number: 2, headBranch: "feature", headSha: "abc123", state: "open" }],
+        }}
+        canMerge
+        mergeBlocked
+        shownHeadSha="shown"
+        stale={false}
+        canRebase
+        canAutoMerge={false}
+        preferAutoMerge
+        autoMergeArmed={false}
+        canCancelAutoMerge={false}
+        mergeMethod="squash"
+        onActed={() => {}}
+      />
+    </ToastProvider>,
+  );
+  const button = screen.getByRole("button", { name: "Merge stack", exact: true });
+  await expect.element(button).toHaveAttribute("aria-disabled", "true");
+  await expect
+    .element(button)
+    .toHaveAttribute(
+      "aria-description",
+      "The repository's rules block merging until their requirements are met.",
+    );
+  expect(state.sent).toEqual([]);
+});
+
+it("leads with Auto-merge stack and disables Merge stack menu item when mergeBlocked is true and auto-merge is available", async () => {
+  setup("");
+  await using screen = await render(
+    <ToastProvider>
+      <PullRequestStackMenu
+        environmentId={EnvironmentId.make("environment")}
+        reference={{
+          projectId: ProjectId.make("project"),
+          repository: "owner/repository",
+          number: 2,
+        }}
+        hostLabel="GitHub"
+        terminology={sourceControlClients.get("github").changeRequest}
+        stack={{
+          id: "stack",
+          number: 1,
+          url: "https://github.com/owner/repository/stack/1",
+          base: "main",
+          layers: [{ number: 2, headBranch: "feature", headSha: "abc123", state: "open" }],
+        }}
+        canMerge
+        mergeBlocked
+        shownHeadSha="shown"
+        stale={false}
+        canRebase
+        canAutoMerge
+        preferAutoMerge
+        autoMergeArmed={false}
+        canCancelAutoMerge={false}
+        mergeMethod="squash"
+        onActed={() => {}}
+      />
+    </ToastProvider>,
+  );
+  await expect
+    .element(screen.getByRole("button", { name: "Auto-merge stack", exact: true }))
+    .toBeEnabled();
+  await screen.getByRole("button", { name: "Stack 1, layer 1 of 1" }).click();
+  await expect
+    .element(page.getByRole("menuitem", { name: /Merge stack/ }))
+    .toHaveAttribute("aria-disabled", "true");
+});

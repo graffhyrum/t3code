@@ -328,6 +328,27 @@ describe("pull request list decoding", () => {
     expect(batch.items.map((entry) => entry.reviewDecision)).toEqual(["review-required"]);
   });
 
+  it("marks a list row as mergeBlocked when GitHub reports BLOCKED without admin bypass or merge queue", () => {
+    const decoded = expectSuccess(
+      decodePullRequestListJson(
+        listJson([
+          {
+            mergeStateStatus: "BLOCKED",
+            viewerCanMergeAsAdmin: false,
+            isMergeQueueEnabled: false,
+          },
+          {
+            mergeStateStatus: "CLEAN",
+            viewerCanMergeAsAdmin: false,
+            isMergeQueueEnabled: false,
+          },
+        ]),
+      ),
+    );
+    expect(decoded.items[0]?.mergeBlocked).toBe(true);
+    expect(decoded.items[1]?.mergeBlocked).toBeUndefined();
+  });
+
   it("skips malformed entries but still counts them, so paging does not stop early", () => {
     const batch = expectSuccess(
       decodePullRequestListJson(listJson([{}, { number: "not-a-number" }])),
@@ -417,6 +438,8 @@ describe("pull request detail decoding", () => {
             viewerCanUpdate: true,
             viewerDidAuthor: false,
             viewerCanUpdateBranch: false,
+            viewerCanMergeAsAdmin: false,
+            isMergeQueueEnabled: false,
             baseRef: null,
             reviewRequests: { nodes: [] },
             labels: { nodes: [] },
@@ -559,6 +582,140 @@ describe("pull request detail decoding", () => {
 
     expect(detail.checks.map((check) => check.status)).toEqual(["success", "action-required"]);
     expect(detail.checksState).toBe("pending");
+  });
+
+  it.each([
+    ["branch protection", { refUpdateRule: { requiredStatusCheckContexts: ["Done"] } }],
+    [
+      "a ruleset",
+      {
+        refUpdateRule: null,
+        rules: {
+          nodes: [
+            {
+              parameters: {
+                __typename: "RequiredStatusChecksParameters",
+                requiredStatusChecks: [{ context: "Done" }],
+              },
+            },
+          ],
+        },
+      },
+    ],
+  ])("waits for a check %s requires that has not started yet", (_source, rules) => {
+    const detail = detailOf(
+      [check({ name: "lint", status: "COMPLETED", conclusion: "SUCCESS", isRequired: true })],
+      { baseRef: { compare: null, ...rules } },
+    );
+
+    expect(detail.checks).toEqual([
+      { name: "lint", status: "success", description: null, url: null, required: true },
+      { name: "Done", status: "pending", description: null, url: null, required: true },
+    ]);
+    expect(detail.checksState).toBe("pending");
+  });
+
+  it("counts a required check as started when workflows share its name", () => {
+    const detail = detailOf(
+      ["linux", "windows"].map((workflowName) =>
+        inWorkflow({ workflowName, name: "build", status: "COMPLETED", conclusion: "SUCCESS" }),
+      ),
+      { baseRef: { compare: null, refUpdateRule: { requiredStatusCheckContexts: ["build"] } } },
+    );
+
+    expect(detail.checks.map((check) => check.name)).toEqual(["linux / build", "windows / build"]);
+    expect(detail.checksState).toBe("passing");
+  });
+
+  it("waits for a required check that only a check GitHub calls not required shares a name with", () => {
+    const detail = detailOf(
+      [
+        check({ name: "lint", status: "COMPLETED", conclusion: "SUCCESS", isRequired: true }),
+        check({ name: "Done", status: "COMPLETED", conclusion: "SUCCESS", isRequired: false }),
+      ],
+      { baseRef: { compare: null, refUpdateRule: { requiredStatusCheckContexts: ["Done"] } } },
+    );
+
+    expect(detail.checks.filter((entry) => entry.required)).toEqual([
+      { name: "lint", status: "success", description: null, url: null, required: true },
+      { name: "Done", status: "pending", description: null, url: null, required: true },
+    ]);
+  });
+
+  it("adds no required check to a head no check has reported on", () => {
+    const detail = detailOf([], {
+      baseRef: { compare: null, refUpdateRule: { requiredStatusCheckContexts: ["Done"] } },
+    });
+
+    expect(detail.checks).toEqual([]);
+    expect(detail.checksState).toBeNull();
+  });
+
+  it("blocks merging a mergeable pull request with green checks that branch rules still hold, unless the viewer may bypass them or a merge queue takes it", () => {
+    const passing = [check({ name: "build", status: "COMPLETED", conclusion: "SUCCESS" })];
+
+    expect(detailOf(passing)).toMatchObject({
+      checksState: "passing",
+      mergeability: "mergeable",
+      mergeBlocked: true,
+    });
+    expect(detailOf(passing, { viewerCanMergeAsAdmin: true }).mergeBlocked).toBe(false);
+    expect(detailOf(passing, { mergeStateStatus: "CLEAN" }).mergeBlocked).toBe(false);
+    expect(detailOf(passing, { isMergeQueueEnabled: true }).mergeBlocked).toBe(false);
+    expect(
+      detailOf(passing, { viewerCanMergeAsAdmin: undefined, isMergeQueueEnabled: undefined })
+        .mergeBlocked,
+    ).toBe(false);
+  });
+
+  it("treats unstarted ruleset check wci-tier with 10 passing + 4 skipped checks and BLOCKED mergeStateStatus as pending and mergeBlocked", () => {
+    const passingChecks = Array.from({ length: 10 }, (_, i) =>
+      check({
+        name: `pass-${i + 1}`,
+        status: "COMPLETED",
+        conclusion: "SUCCESS",
+        isRequired: false,
+      }),
+    );
+    const skippedChecks = Array.from({ length: 4 }, (_, i) =>
+      check({
+        name: `skip-${i + 1}`,
+        status: "COMPLETED",
+        conclusion: "SKIPPED",
+        isRequired: false,
+      }),
+    );
+    const detail = detailOf([...passingChecks, ...skippedChecks], {
+      mergeable: "MERGEABLE",
+      mergeStateStatus: "BLOCKED",
+      viewerCanMergeAsAdmin: false,
+      isMergeQueueEnabled: false,
+      baseRef: {
+        compare: null,
+        refUpdateRule: null,
+        rules: {
+          nodes: [
+            {
+              parameters: {
+                __typename: "RequiredStatusChecksParameters",
+                requiredStatusChecks: [{ context: "wci-tier" }],
+              },
+            },
+          ],
+        },
+      },
+    });
+
+    expect(detail.checksState).toBe("pending");
+    expect(detail.mergeBlocked).toBe(true);
+    expect(detail.checks).toHaveLength(15);
+    expect(detail.checks.find((entry) => entry.name === "wci-tier")).toEqual({
+      name: "wci-tier",
+      status: "pending",
+      description: null,
+      url: null,
+      required: true,
+    });
   });
 
   it("reads a merged pull request's merge commit and who merged it", () => {

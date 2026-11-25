@@ -98,6 +98,7 @@ export interface ProviderChangeRequest {
   readonly state: PullRequestState;
   readonly isDraft: boolean;
   readonly mergeability: PullRequestMergeability;
+  readonly mergeBlocked?: boolean | undefined;
   readonly rebaseRequired?: boolean | undefined;
   readonly additions: number;
   readonly deletions: number;

@@ -61,6 +61,7 @@ query PullRequestCore(
   $number: Int!
   $headRef: String!
   $required: Boolean!
+  $requiredRules: Boolean!
   $requestedReviewers: Int!
   $mergeQueue: Boolean!
 ) {
@@ -140,9 +141,28 @@ query PullRequestCore(
       viewerCanUpdate
       viewerDidAuthor
       viewerCanUpdateBranch
+      # Newer than some Enterprise servers; without them, branch rules never read as blocking.
+      viewerCanMergeAsAdmin @include(if: $mergeQueue)
+      isMergeQueueEnabled @include(if: $mergeQueue)
+      # Required checks of branch protection and rulesets, on github.com only like `isRequired`. A
+      # required check not created on the head yet (a `needs:` job) is in no rollup context.
       baseRef {
         compare(headRef: $headRef) {
           behindBy
+        }
+        refUpdateRule @include(if: $requiredRules) {
+          requiredStatusCheckContexts
+        }
+        rules(first: 100) @include(if: $requiredRules) {
+          nodes {
+            parameters {
+              ... on RequiredStatusChecksParameters {
+                requiredStatusChecks {
+                  context
+                }
+              }
+            }
+          }
         }
       }
       reviewRequests(first: $requestedReviewers) {

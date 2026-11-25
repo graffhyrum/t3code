@@ -1453,10 +1453,15 @@ export function PullRequestDetailPanel({
   const detailChecksState = detail ? pullRequestChecksState(detail.checks) : null;
   const latestChecksState =
     sharedSummary?.checksState === undefined ? detailChecksState : sharedSummary.checksState;
-  // List rollups can omit workflows awaiting approval. Only refreshed detail can clear those.
+  // List rollups can omit workflows awaiting approval and unstarted required checks.
+  // Only refreshed detail can clear those.
   const checksState =
     latestChecksState !== "failing" &&
-    detail?.checks.some((check) => check.status === "action-required")
+    detail?.checks.some(
+      (check) =>
+        check.status === "action-required" ||
+        (check.status === "pending" && check.required === true),
+    )
       ? "pending"
       : latestChecksState;
   const checksStale = checksState !== detailChecksState;
@@ -1465,6 +1470,7 @@ export function PullRequestDetailPanel({
         state: detail.state,
         isDraft: detail.isDraft,
         mergeability: detail.mergeability,
+        mergeBlocked: detail.mergeBlocked,
         checksState,
         autoMergeEnabled: detail.autoMergeEnabled,
         hasMergeMethod: allowedMergeMethods.length > 0,
@@ -1473,6 +1479,11 @@ export function PullRequestDetailPanel({
         canEnableAutoMerge: !stackOwnsMerge && can("enable-auto-merge"),
       })
     : null;
+  const primaryMergeBlockedReason =
+    mergeBlockedReason ??
+    (primaryAction === "merge" && detail?.mergeBlocked === true
+      ? gt("The repository's rules block merging until their requirements are met.")
+      : null);
   const showsDraftToggle =
     detail?.state === "open" &&
     can(detail.isDraft ? "ready" : "draft") &&
@@ -1494,6 +1505,7 @@ export function PullRequestDetailPanel({
     can("merge") &&
     !detail.isDraft &&
     !conflicting &&
+    detail.mergeBlocked !== true &&
     allowedMergeMethods.length > 0;
   const showsMergeMethods =
     detail?.state === "open" &&
@@ -1672,7 +1684,11 @@ export function PullRequestDetailPanel({
                     canAutoMerge={
                       stackAutoMerge && can("enable-auto-merge") && allowedMergeMethods.length > 0
                     }
-                    preferAutoMerge={checksState !== null && checksState !== "passing"}
+                    mergeBlocked={detail.mergeBlocked === true}
+                    preferAutoMerge={
+                      detail.mergeBlocked === true ||
+                      (checksState !== null && checksState !== "passing")
+                    }
                     autoMergeArmed={stackAutoMerge && autoMergeArmed}
                     canCancelAutoMerge={stackAutoMerge && can("disable-auto-merge")}
                     onActed={() => {
@@ -1682,7 +1698,7 @@ export function PullRequestDetailPanel({
                   />
                 ) : null}
                 <PullRequestPrimaryAction
-                  mergeBlockedReason={mergeBlockedReason}
+                  mergeBlockedReason={primaryMergeBlockedReason}
                   pullRequestKey={pullRequestKey}
                   primaryAction={primaryAction}
                   autoMergeArmed={autoMergeArmed}

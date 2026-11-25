@@ -33,6 +33,9 @@ fragment PullRequestRow on PullRequest {
   state
   isDraft
   mergeable
+  mergeStateStatus @include(if: $stacks)
+  viewerCanMergeAsAdmin @include(if: $stacks)
+  isMergeQueueEnabled @include(if: $stacks)
   reviewDecision
   latestReviews(first: 20) {
     nodes {

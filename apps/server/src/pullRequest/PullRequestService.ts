@@ -1380,6 +1380,7 @@ export const make = Effect.gen(function* () {
       state: input.item.state,
       isDraft: input.item.isDraft,
       mergeability: input.item.mergeability,
+      ...(input.item.mergeBlocked === undefined ? {} : { mergeBlocked: input.item.mergeBlocked }),
       ...(input.item.rebaseRequired === undefined
         ? {}
         : { rebaseRequired: input.item.rebaseRequired }),
@@ -2012,6 +2013,9 @@ export const make = Effect.gen(function* () {
             ...(changeRequest.workflowApprovalsRequired === undefined
               ? {}
               : { workflowApprovalsRequired: changeRequest.workflowApprovalsRequired }),
+            ...(changeRequest.mergeBlocked === undefined
+              ? {}
+              : { mergeBlocked: changeRequest.mergeBlocked }),
             ...(changeRequest.mergeQueueRemoval === undefined
               ? {}
               : { mergeQueueRemoval: changeRequest.mergeQueueRemoval }),
@@ -3436,6 +3440,7 @@ export const make = Effect.gen(function* () {
                 ...(value.workflowApprovalsRequired === undefined
                   ? {}
                   : { workflowApprovalsRequired: value.workflowApprovalsRequired }),
+                ...(value.mergeBlocked === undefined ? {} : { mergeBlocked: value.mergeBlocked }),
               });
             }
             recordStats(

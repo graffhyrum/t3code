@@ -20,6 +20,8 @@ const coreFields = {
   canEditMaintainerEdits: false,
   reviewRequestTeams: [],
   checksTruncated: false,
+  requiredCheckNames: [],
+  mergeBlocked: false,
   comparison: { behindBy: 0, viewerCanUpdate: true },
   viewerAccess: {
     canWrite: true,
@@ -349,7 +351,12 @@ describe("gitHubViewerPermissions", () => {
       if (readChecks === undefined) return yield* Effect.die("checks read missing");
       expect(
         yield* readChecks({ cwd: "/w", repository: "acme/web", host: "github.com", number: 7 }),
-      ).toEqual({ state: detail.state, checks: detail.checks, workflowApprovalsRequired: 1 });
+      ).toEqual({
+        state: detail.state,
+        checks: detail.checks,
+        workflowApprovalsRequired: 1,
+        mergeBlocked: detail.mergeBlocked,
+      });
       expect(detail.workflowApprovalsRequired).toBe(1);
       expect(detail.checks).toEqual([
         {
